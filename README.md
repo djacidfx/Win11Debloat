@@ -47,7 +47,7 @@ You can pick and choose exactly which modifications you want the script to make,
 > [!TIP]
 > In 'custom mode' you can specify exactly which apps you like to remove and which you want to keep!
 
-### Apps that ARE removed
+### Apps that ARE removed by default
 
 <details>
   <summary>Click to expand</summary>
@@ -147,7 +147,7 @@ You can pick and choose exactly which modifications you want the script to make,
   </blockquote>
 </details>
 
-### Apps that are NOT removed
+### Apps that are NOT removed by default
 
 <details>
   <summary>Click to expand</summary>
@@ -155,6 +155,7 @@ You can pick and choose exactly which modifications you want the script to make,
     
     General apps that are not removed by default:
     - Microsoft.GetHelp (Required for some Windows 11 Troubleshooters)
+    - Microsoft.MicrosoftEdge.Stable (Edge browser)
     - Microsoft.MSPaint (Paint 3D)
     - Microsoft.OutlookForWindows* (New mail app)
     - Microsoft.Paint (Classic Paint)

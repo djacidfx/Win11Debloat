@@ -59,6 +59,8 @@ function ShowAppSelectionForm {
     $button1 = New-Object System.Windows.Forms.Button
     $button2 = New-Object System.Windows.Forms.Button
     $selectionBox = New-Object System.Windows.Forms.CheckedListBox 
+    $loadingLabel = New-Object System.Windows.Forms.Label
+    $onlyInstalledCheckBox = New-Object System.Windows.Forms.CheckBox
     $InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
 
     # saveButton eventHandler
@@ -88,17 +90,73 @@ function ShowAppSelectionForm {
         $form.WindowState = $InitialFormWindowState
     }
 
+    $load_Apps=
+    {
+        # Show loading indicator
+        $loadingLabel.Visible = $true
+        $form.Refresh()
+
+        # Clear selectionBox before adding any new items
+        $selectionBox.Items.Clear()
+
+        # Set filePath where Appslist can be found
+        $appsFile = "$PSScriptRoot/Appslist.txt"
+
+        # Go through appslist and add items one by one to the selectionBox
+        Foreach ($app in (Get-Content -Path $appsFile | Where-Object { $_ -notmatch '^\s*$' } )) { 
+            $AppChecked = $true
+
+            # Remove first # if it exists and set AppChecked to false
+            if ($app.StartsWith('#')) {
+                $app = $app.TrimStart("#")
+                $AppChecked = $false
+            }
+            # Remove any comments from the Appname
+            if (-not ($app.IndexOf('#') -eq -1)) {
+                $app = $app.Substring(0, $app.IndexOf('#'))
+            }
+            # Remove any remaining spaces from the Appname
+            if (-not ($app.IndexOf(' ') -eq -1)) {
+                $app = $app.Substring(0, $app.IndexOf(' '))
+            }
+
+            $appString = $app.Trim('*')
+
+            # Make sure appString is not empty
+            if ($appString.length -gt 0) {
+                if($onlyInstalledCheckBox.Checked) {
+                    # onlyInstalledCheckBox is checked, check if app is installed before adding to selectionBox
+                    $installed = Get-AppxPackage -Name $app
+
+                    if($installed.length -eq 0) {
+                        # App is not installed, continue to next item without adding this app to the selectionBox
+                        continue
+                    }
+                }
+
+                # Add the app to the selectionBox and set it's checked status
+                $selectionBox.Items.Add($appString, $AppChecked) | Out-Null
+            }
+        }
+        
+        # Hide loading indicator
+        $loadingLabel.Visible = $false
+
+        # Sort selectionBox alphabetically
+        $selectionBox.Sorted = $true;
+    }
+
     $form.Text = "Win11Debloat Application Selection"
     $form.Name = "appSelectionForm"
     $form.DataBindings.DefaultDataSourceUpdateMode = 0
-    $form.ClientSize = New-Object System.Drawing.Size(400,486)
+    $form.ClientSize = New-Object System.Drawing.Size(400,485)
 
     $button1.TabIndex = 4
     $button1.Name = "saveButton"
     $button1.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $button1.UseVisualStyleBackColor = $True
     $button1.Text = "Save"
-    $button1.Location = New-Object System.Drawing.Point(27,450)
+    $button1.Location = New-Object System.Drawing.Point(27,454)
     $button1.Size = New-Object System.Drawing.Size(75,23)
     $button1.DataBindings.DefaultDataSourceUpdateMode = 0
     $button1.add_Click($handler_saveButton_Click)
@@ -110,85 +168,52 @@ function ShowAppSelectionForm {
     $button2.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $button2.UseVisualStyleBackColor = $True
     $button2.Text = "Cancel"
-    $button2.Location = New-Object System.Drawing.Point(129,450)
+    $button2.Location = New-Object System.Drawing.Point(129,454)
     $button2.Size = New-Object System.Drawing.Size(75,23)
     $button2.DataBindings.DefaultDataSourceUpdateMode = 0
     $button2.add_Click($handler_cancelButton_Click)
 
     $form.Controls.Add($button2)
 
-    $label.Location = New-Object System.Drawing.Point(13,0)
+    $label.Location = New-Object System.Drawing.Point(13,5)
     $label.Size = New-Object System.Drawing.Size(400,20)
-    $label.Text = 'Check all apps that you wish to remove'
+    $label.Text = 'Check apps that you wish to remove, uncheck apps that you wish to keep'
 
     $form.Controls.Add($label)
+
+    $loadingLabel.Location = New-Object System.Drawing.Point(16,28)
+    $loadingLabel.Size = New-Object System.Drawing.Size(200,418)
+    $loadingLabel.Text = 'Loading...'
+    $loadingLabel.BackColor = "White"
+    $loadingLabel.Visible = $false
+
+    $form.Controls.Add($loadingLabel)
+
+    $onlyInstalledCheckBox.TabIndex = 6
+    $onlyInstalledCheckBox.Location = New-Object System.Drawing.Point(230,456)
+    $onlyInstalledCheckBox.Size = New-Object System.Drawing.Size(150,20)
+    $onlyInstalledCheckBox.Text = 'Only show installed apps'
+    $onlyInstalledCheckBox.add_CheckedChanged($load_Apps)
+
+    $form.Controls.Add($onlyInstalledCheckBox)
 
     $selectionBox.FormattingEnabled = $True
     $selectionBox.DataBindings.DefaultDataSourceUpdateMode = 0
     $selectionBox.Name = "selectionBox"
-    $selectionBox.Location = New-Object System.Drawing.Point(13,20)
+    $selectionBox.Location = New-Object System.Drawing.Point(13,25)
     $selectionBox.Size = New-Object System.Drawing.Size(374,424)
     $selectionBox.TabIndex = 3
 
     $form.Controls.Add($selectionBox)
-
-    # Keep track of number of checkboxes
-    $selectionBoxItemCounter = 0
-
-    $appsFile = "$PSScriptRoot/Appslist.txt"
-
-    # Go through appslist and add all items that should be checked by default
-    Foreach ($app in (Get-Content -Path $appsFile | Where-Object { $_ -notmatch '^#.*' -and $_ -notmatch '^\s*$' } )) { 
-        # Remove any comments from the Appname
-        if (-not ($app.IndexOf('#') -eq -1)) {
-            $app = $app.Substring(0, $app.IndexOf('#'))
-        }
-        # Remove any remaining spaces from the Appname
-        if (-not ($app.IndexOf(' ') -eq -1)) {
-            $app = $app.Substring(0, $app.IndexOf(' '))
-        }
-
-        $appString = $app.Trim('*')
-
-        if ($appString.length -gt 0) {
-            $selectionBox.Items.Add($appString) | Out-Null
-            $selectionBox.SetItemChecked($selectionBoxItemCounter, $true);
-            $selectionBoxItemCounter++
-        }
-    }
-
-    # Go through appslist and add all items that should NOT be checked by default
-    Foreach ($app in (Get-Content -Path $appsFile | Where-Object { $_ -match '^#.*' -and $_ -notmatch '^\s*$' } )) { 
-        # Remove first #
-        if (-not ($app.IndexOf('#') -eq -1)) {
-            $app = $app.TrimStart("#")
-        }
-        # Remove any comments from the Appname
-        if (-not ($app.IndexOf('#') -eq -1)) {
-            $app = $app.Substring(0, $app.IndexOf('#'))
-        }
-        # Remove any remaining spaces from the Appname
-        if (-not ($app.IndexOf(' ') -eq -1)) {
-            $app = $app.Substring(0, $app.IndexOf(' '))
-        }
-
-        $appString = $app.Trim('*')
-
-        if ($appString.length -gt 0) {
-            $selectionBox.Items.Add($appString) | Out-Null
-            $selectionBox.SetItemChecked($selectionBoxItemCounter, $false);
-            $selectionBoxItemCounter++
-        }
-    }
-
-    # Sort selectionBox alphabetically
-    $selectionBox.Sorted = $true;
 
     # Save the initial state of the form
     $InitialFormWindowState = $form.WindowState
 
     # Init the OnLoad event to correct the initial state of the form
     $form.add_Load($OnLoadForm_StateCorrection)
+
+    # Load apps into selectionBox
+    $form.add_Load($load_Apps)
 
     # Focus selectionBox when form opens
     $form.Add_Shown({$form.Activate(); $selectionBox.Focus()})
@@ -242,8 +267,9 @@ function RemoveSpecificApps {
     )
 
     Foreach ($app in $appsList) { 
-        $appString = $app.Trim('*')
-        Write-Output "Attempting to remove $appString..."
+        Write-Output "Attempting to remove $app..."
+
+        $app = '*' + $app + '*'
 
         # Remove installed app for all existing users
         Get-AppxPackage -Name $app -AllUsers | Remove-AppxPackage
@@ -388,6 +414,9 @@ function PrintFromFile {
 }
 
 
+# Hide progress bars for app removal, as they block Win11Debloat's output
+$ProgressPreference = 'SilentlyContinue'
+
 $global:Params = $PSBoundParameters;
 $global:FirstSelection = $true
 $SPParams = 'WhatIf', 'Confirm', 'Verbose', 'Silent'
@@ -443,8 +472,8 @@ if ((-not $global:Params.Count) -or $RunDefaults -or $RunWin11Defaults -or ($SPP
                 # Get & print default settings info from file
                 PrintFromFile "$PSScriptRoot/Menus/DefaultSettings"
 
-                Write-Output "Press any key to start..."
-                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                Write-Output "Press enter to execute the script or press CTRL+C to quit..."
+                Read-Host | Out-Null
             }
             elseif (($Mode -eq '3')) {
                 if (Test-Path "$PSScriptRoot/LastSettings") {
@@ -469,8 +498,8 @@ if ((-not $global:Params.Count) -or $RunDefaults -or $RunWin11Defaults -or ($SPP
                         }
 
                         Write-Output ""
-                        Write-Output "Press any key to start..."
-                        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                        Write-Output "Press enter to execute the script or press CTRL+C to quit..."
+                        Read-Host | Out-Null
                     }
                 } 
                 else {
@@ -550,7 +579,7 @@ if ((-not $global:Params.Count) -or $RunDefaults -or $RunWin11Defaults -or ($SPP
                 '3' {
                     Write-Output "$($global:SelectedApps.Count) apps have been selected for removal"
 
-                    AddParameter 'RemoveAppsCustom' 'Remove custom selection of apps'
+                    AddParameter 'RemoveAppsCustom' "Remove $($global:SelectedApps.Count) apps (selected by user)"
                 }
             }
 
@@ -740,8 +769,8 @@ if ((-not $global:Params.Count) -or $RunDefaults -or $RunWin11Defaults -or ($SPP
                 Write-Output ""
                 Write-Output ""
                 Write-Output ""
-                Write-Output "Press any key to confirm your choices and execute the script..."
-                $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                Write-Output "Press enter to confirm your choices and execute the script or press CTRL+C to quit..."
+                Read-Host | Out-Null
             }
 
             PrintHeader 'Custom Configuration'
@@ -779,7 +808,7 @@ else {
         }
         'RemoveAppsCustom' {
             if ($global:SelectedApps.Count -gt 0) {
-                Write-Output "> Removing custom selection of $($global:SelectedApps.Count) apps..."
+                Write-Output "> Removing $($global:SelectedApps.Count) apps..."
                 RemoveSpecificApps $global:SelectedApps
             } 
             elseif (Test-Path "$PSScriptRoot/CustomAppsList") {
@@ -793,7 +822,7 @@ else {
                     $AppsList += $App
                 }
 
-                Write-Output "> Removing custom selection of $($AppsList.Count) apps..."
+                Write-Output "> Removing $($AppsList.Count) apps..."
                 RemoveSpecificApps $AppsList
             }
             else {
@@ -806,7 +835,7 @@ else {
         'RemoveCommApps' {
             Write-Output "> Removing Mail, Calendar and People apps..."
             
-            $AppsList = '*Microsoft.windowscommunicationsapps*', '*Microsoft.People*'
+            $AppsList = 'Microsoft.windowscommunicationsapps', 'Microsoft.People'
             RemoveSpecificApps $AppsList
 
             Write-Output ""
@@ -815,7 +844,7 @@ else {
         'RemoveW11Outlook' {
             Write-Output "> Removing new Outlook for Windows app..."
             
-            $AppsList = '*Microsoft.OutlookForWindows*'
+            $AppsList = 'Microsoft.OutlookForWindows'
             RemoveSpecificApps $AppsList
 
             Write-Output ""
@@ -824,7 +853,7 @@ else {
         'RemoveDevApps' {
             Write-Output "> Removing developer-related related apps..."
 
-            $AppsList = '*Microsoft.PowerAutomateDesktop*', '*Microsoft.RemoteDesktop*', '*Windows.DevHome*'
+            $AppsList = 'Microsoft.PowerAutomateDesktop', 'Microsoft.RemoteDesktop', 'Windows.DevHome'
             RemoveSpecificApps $AppsList
 
             Write-Output ""
@@ -834,7 +863,7 @@ else {
         'RemoveGamingApps' {
             Write-Output "> Removing gaming related apps..."
 
-            $AppsList = '*Microsoft.GamingApp*', '*Microsoft.XboxGameOverlay*', '*Microsoft.XboxGamingOverlay*'
+            $AppsList = 'Microsoft.GamingApp', 'Microsoft.XboxGameOverlay', 'Microsoft.XboxGamingOverlay'
             RemoveSpecificApps $AppsList
 
             Write-Output ""
@@ -853,7 +882,7 @@ else {
             RegImport "> Disabling bing search, bing AI & cortana in Windows search..." $PSScriptRoot\Regfiles\Disable_Bing_Cortana_In_Search.reg
             
             # Also remove the app package for bing search
-            $AppsList = '*Microsoft.BingSearch*'
+            $AppsList = 'Microsoft.BingSearch'
             RemoveSpecificApps $AppsList
 
             Write-Output ""
